@@ -2655,3 +2655,20 @@ body {
   margin-top: auto;
   padding-top: 22px;
 }
+/* Header order: ? · Reiniciar · Sonido · volumen. The label keeps its width when toggled. */
+#sound-toggle span {
+  display: inline-block;
+  min-width: 15ch;
+  text-align: left;
+}
+.header-right #sound-toggle {
+  margin-right: -6px;
+}
+@media(max-width:760px) {
+  #sound-toggle span {
+    display: none;
+  }
+  .header-right #sound-toggle {
+    margin-right: -4px;
+  }
+}

@@ -9,7 +9,10 @@ class AdventureAudio {
   private bar = 0;
   private sources = new Set<AudioScheduledSourceNode>();
   private noise?: AudioBuffer;
-  enabled = false;
+  /** On by default. Browsers only let audio play after a gesture, see unlock(). */
+  enabled = true;
+  private started = false;
+  private starting = false;
   volume = 0.55;
   private initialize() {
     if (this.ctx) return;
@@ -48,13 +51,58 @@ class AdventureAudio {
       this.initialize();
       await this.ctx!.resume();
       this.enabled = true;
-      this.master!.gain.setTargetAtTime(0.55, this.ctx!.currentTime, 0.08);
-      this.startMusic();
+      this.begin();
       return true;
     } catch {
       this.disable();
       return false;
     }
+  }
+  private begin() {
+    this.started = true;
+    this.master!.gain.setTargetAtTime(0.55, this.ctx!.currentTime, 0.08);
+    this.startMusic();
+  }
+  /**
+   * Sound starts "on", but the browser blocks audio until the visitor interacts.
+   * The first gesture starts the music; it is retried until the context runs.
+   */
+  async unlock() {
+    if (!this.enabled || this.started || this.starting) return;
+    this.starting = true;
+    try {
+      this.initialize();
+      await this.ctx!.resume();
+      if (this.enabled && !this.started && this.ctx!.state === "running")
+        this.begin();
+    } catch {
+      /* Blocked: the next gesture tries again. */
+    } finally {
+      this.starting = false;
+    }
+  }
+  /** Soft, dry, low "little drum" tap for button clicks. */
+  tap() {
+    if (!this.enabled || !this.started || !this.ctx || this.ctx.state !== "running")
+      return;
+    const ctx = this.ctx,
+      t = ctx.currentTime + 0.005,
+      pitch = 1 + (Math.random() - 0.5) * 0.08,
+      body = ctx.createOscillator(),
+      g = ctx.createGain();
+    body.type = "sine";
+    body.frequency.setValueAtTime(175 * pitch, t);
+    body.frequency.exponentialRampToValueAtTime(82 * pitch, t + 0.1);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.2, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+    body.connect(g);
+    g.connect(this.effects!);
+    this.remember(body);
+    body.start(t);
+    body.stop(t + 0.15);
+    // A very short muffled knock gives the "dry" attack without any click.
+    this.noiseBurst(t, 0.028, 0.05, this.effects!, 700);
   }
   private remember(source: AudioScheduledSourceNode) {
     this.sources.add(source);
@@ -65,6 +113,7 @@ class AdventureAudio {
   }
   disable() {
     this.enabled = false;
+    this.started = false;
     clearInterval(this.timer);
     this.timer = undefined;
     if (this.ctx)

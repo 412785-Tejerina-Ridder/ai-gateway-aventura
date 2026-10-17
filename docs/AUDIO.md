@@ -14,7 +14,7 @@ El cierre combina ráfagas de aplausos con un pequeño coro caricaturesco de voc
 
 ## Controles
 
-- Todo empieza apagado. El navegador requiere un gesto para habilitar audio.
+- El sonido empieza activado; como el navegador requiere un gesto para habilitar audio, la música arranca con el primer clic o tecla. Cada botón emite un golpecito suave de tamboril (silenciado junto con el resto al apagar ♫).
 - ♫ activa música y efectos. El slider regula la música.
 - Apagar ♫ cancela fuentes y programación, no solo oculta el control.
 - El popup final ofrece activar música y festejos, o repetir el festejo si el sonido ya está activo.
