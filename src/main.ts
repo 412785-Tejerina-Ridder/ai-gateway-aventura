@@ -6,6 +6,7 @@ import "./styles/frame.css";
 import { createStage } from "./ui/stage";
 import { AdventureProgress } from "./state/progress";
 import { Celebrations } from "./ui/celebrations";
+import { nextChapterAction } from "./state/navigation";
 import { gameAudio } from "./audio/engine";
 import { chapters } from "./scenes";
 import { character } from "./characters/characters";
@@ -57,6 +58,31 @@ document
 document.querySelector('#chapter-status')!.setAttribute('role', 'status');
 document.querySelector('#chapter-status')!.innerHTML = '<span id="mission-star" aria-hidden="true">★</span><span id="mission-state">Misión incompleta</span>';
 document.querySelector('#next')!.innerHTML = '<span id="next-label">Próximo capítulo →</span><span class="next-particles" aria-hidden="true">' + Array.from({ length: 6 }, (_, i) => '<i style="--n:' + i + '">' + (i % 2 ? '✦' : '•') + '</i>').join('') + '</span>';
+// Friendly reminder before skipping a pending mission (shared dialog styles).
+document.querySelector('#app')!.insertAdjacentHTML('beforeend', '<dialog class="celebration-dialog skip-dialog" id="skip-dialog" aria-labelledby="skip-title" aria-describedby="skip-text"><button class="dialog-close" data-skip-stay aria-label="Cerrar y volver a mi misión">×</button><span class="skip-star" aria-hidden="true">★</span><span class="eyebrow" id="skip-chapter"></span><h2 id="skip-title">¡Todavía te falta conseguir tu estrella!</h2><p id="skip-text">Podés seguir explorando la ciudad, pero si terminás esta misión primero, te llevás una estrella más.</p><div class="final-actions"><button class="btn btn-primary" data-skip-stay>Volver a mi misión</button><button class="btn btn-secondary" id="skip-chapter-button">Saltar capítulo →</button></div></dialog>');
+const skipDialog = document.querySelector<HTMLDialogElement>('#skip-dialog')!;
+let skipFrom = -1;
+function warnBeforeSkipping() {
+    if (skipDialog.open)
+        return; // One warning per action, even with repeated clicks or keys.
+    skipFrom = current;
+    skipDialog.querySelector('#skip-chapter')!.textContent = `CAPÍTULO ${String(current + 1).padStart(2, '0')} · ${chapters[current].label.toUpperCase()}`;
+    skipDialog.showModal();
+    skipDialog.querySelector<HTMLButtonElement>('.btn-primary')!.focus();
+}
+skipDialog.querySelectorAll('[data-skip-stay]').forEach(b => b.addEventListener('click', () => skipDialog.close('stay')));
+skipDialog.addEventListener('close', () => {
+    if (skipDialog.returnValue !== 'skip')
+        document.querySelector<HTMLElement>('#next')?.focus({ preventScroll: true });
+    skipDialog.returnValue = '';
+});
+skipDialog.querySelector('#skip-chapter-button')!.addEventListener('click', () => {
+    const from = skipFrom;
+    skipDialog.close('skip');
+    // Plain navigation: no stamp, no star and no celebration for the skipped chapter.
+    if (from === current && from < 9)
+        navigate(from + 1, true);
+});
 const celebrations = new Celebrations({
     landed: (ticket) => { if (progressState.acknowledge(ticket))
         progress(); },
@@ -105,6 +131,10 @@ function progress() {
     document
         .querySelector("#next")!
         .classList.toggle("next-ready", done);
+    // Pending missions keep a calmer, still clickable button (never `disabled`).
+    document
+        .querySelector("#next")!
+        .classList.toggle("next-pending", current > 0 && current < 9 && phase === 'pending');
     document.querySelector<HTMLButtonElement>("#next")!.disabled =
         current === 9 && !finished.has(9);
 }
@@ -138,6 +168,8 @@ document
 function navigate(index: number, focus = false) {
     progressState.leaveChapter();
     celebrations.close();
+    if (skipDialog.open)
+        skipDialog.close('skip');
     cleanups.forEach((fn) => fn());
     cleanups = [];
     current = Math.max(0, Math.min(9, index));
@@ -172,6 +204,13 @@ function navigate(index: number, focus = false) {
                 presentNewStar(chapterIndex);
             return fresh;
         },
+        explore: (key) => {
+            const fresh = progressState.explore(chapterIndex, key);
+            if (fresh)
+                save();
+            return fresh;
+        },
+        isComplete: () => finished.has(chapterIndex),
         say: (text, speaker = "Gati") => {
             document.querySelector("#dialogue")!.textContent = text;
             document.querySelector("#dialogue-speaker")!.textContent =
@@ -214,11 +253,17 @@ document
 document
     .querySelector("#prev")!
     .addEventListener("click", () => navigate(current - 1, true));
-document.querySelector("#next")!.addEventListener("click", () => current === 9
-    ? celebrations.showFinal(progressState, chapters.map((c) => c.label), progressState.celebration ?? undefined)
-    : current === 0 && !finished.has(0)
-        ? completeWelcome()
-        : navigate(current + 1, true));
+document.querySelector("#next")!.addEventListener("click", () => {
+    const action = nextChapterAction(current, finished);
+    if (action === "finale")
+        celebrations.showFinal(progressState, chapters.map((c) => c.label), progressState.celebration ?? undefined);
+    else if (action === "complete-welcome")
+        completeWelcome();
+    else if (action === "warn")
+        warnBeforeSkipping();
+    else
+        navigate(current + 1, true);
+});
 document
     .querySelector("#sound-toggle")!
     .addEventListener("click", async (e) => {

@@ -40,7 +40,7 @@ export function createStage(root: HTMLElement, index: number, chapter: Chapter) 
         if (guide)
             aside.append(guide);
     }
-    for (const selector of ['#case-conclusion', '#notebook-status']) {
+    for (const selector of ['#quest-progress', '#case-conclusion', '#notebook-status']) {
         const el = root.querySelector(selector);
         if (el)
             aside.append(el);
@@ -92,6 +92,9 @@ export function createStage(root: HTMLElement, index: number, chapter: Chapter) 
         const options = root.querySelector('.choices');
         if (options)
             main.prepend(options);
+        const quest = root.querySelector('.scenario-quest');
+        if (quest)
+            main.prepend(quest);
         if (heading)
             main.prepend(heading);
     }
@@ -146,7 +149,7 @@ export function createStage(root: HTMLElement, index: number, chapter: Chapter) 
         start.dataset.startScene = '';
         start.textContent = 'Comenzar ↓';
         presentation.append(start);
-        start.addEventListener('click', () => { cancelGuidance(); cancelGuidance = scrollToActivity(main, controls, frame); });
+        start.addEventListener('click', () => { cancelGuidance(); cancelGuidance = scrollToActivity(main, controls, frame, index === 1 && main.querySelector<HTMLElement>('.delegation-board')?.dataset.reserved === 'false'); });
         root.append(presentation);
     }
     root.append(frame, help);
@@ -181,8 +184,12 @@ export function createStage(root: HTMLElement, index: number, chapter: Chapter) 
     root.addEventListener('click', enterBuilding);
     const followRequestStep = (event: Event) => {
         if (index !== 1 || !(event.target as Element).closest('[data-action="advance"],[data-action="replay"]')) return;
+        const reserved = main.querySelector<HTMLElement>('.delegation-board')?.dataset.reserved === 'true';
+        // With a reserved stage nothing moved: only guide the view if the activity is not fully visible.
+        if (reserved && activityVisible(main, controls))
+            return;
         cancelGuidance();
-        cancelGuidance = scrollToActivity(main, controls, frame);
+        cancelGuidance = scrollToActivity(main, controls, frame, !reserved, !reserved);
     };
     root.addEventListener('click', followRequestStep);
     const syncTickets = () => root.querySelectorAll<HTMLButtonElement>('[data-ticket-view]').forEach(button => {
@@ -196,7 +203,19 @@ export function createStage(root: HTMLElement, index: number, chapter: Chapter) 
     syncTickets();
     return { openHelp, dispose: () => { cancelGuidance(); observer?.disconnect(); root.removeEventListener('click', enterBuilding); root.removeEventListener('click', followRequestStep); help.close(); } };
 }
-function scrollToActivity(target: HTMLElement, controls: HTMLElement | null, focus: HTMLElement) {
+function activityVisible(target: HTMLElement, controls: HTMLElement | null) {
+    const chrome = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-height')) || 130;
+    const hud = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hud-height')) || 80;
+    const top = target.getBoundingClientRect().top;
+    const bottom = controls?.children.length ? controls.getBoundingClientRect().bottom : target.getBoundingClientRect().bottom;
+    return top >= chrome && bottom <= innerHeight - hud;
+}
+/**
+ * `pinControls` keeps the controls at the same place above the HUD whatever the
+ * height of the content (used when a stage is too tall to reserve its space);
+ * `instant` applies it before the next paint, so the button never jumps.
+ */
+function scrollToActivity(target: HTMLElement, controls: HTMLElement | null, focus: HTMLElement, pinControls = false, instant = false) {
     const chrome = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-height')) || 130;
     const hud = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hud-height')) || 80;
     const rect = target.getBoundingClientRect();
@@ -207,8 +226,11 @@ function scrollToActivity(target: HTMLElement, controls: HTMLElement | null, foc
     const available = innerHeight - chrome - hud;
     const height = end - rect.top;
     const inset = height <= available ? Math.max(0, (available - height) / 2) : 16;
-    const top = Math.min(Math.max(0, document.documentElement.scrollHeight - innerHeight), Math.max(0, scrollY + rect.top - chrome - inset));
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const wanted = pinControls && controls?.children.length
+        ? scrollY + controls.getBoundingClientRect().bottom - (innerHeight - hud - 16)
+        : scrollY + rect.top - chrome - inset;
+    const top = Math.min(Math.max(0, document.documentElement.scrollHeight - innerHeight), Math.max(0, wanted));
+    const reduced = instant || matchMedia('(prefers-reduced-motion: reduce)').matches;
     let ended = false;
     const finish = () => {
         if (ended)

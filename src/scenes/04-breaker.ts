@@ -2,6 +2,7 @@ import { character } from "../characters/characters";
 import { button, note } from "../ui/components";
 import { introduction, guidance } from "../ui/narrative";
 import { BreakerDemo } from "../simulators/models";
+import { reserveLabelWidth } from "../ui/stability";
 import type { Chapter } from "../types";
 export const breakerChapter: Chapter = {
   id: "descanso",
@@ -22,6 +23,8 @@ export const breakerChapter: Chapter = {
     const call = ctx.root.querySelector<HTMLButtonElement>(
       '[data-action="call"]',
     )!;
+    // Keep the centred controls from sliding as this label changes.
+    ctx.onCleanup(reserveLabelWidth(call, ['Enviar pedido 1 de 3 ✉', 'Enviar pedido 2 de 3 ✉', 'Enviar pedido 3 de 3 ✉', 'Intentar otro pedido: Gati lo frena ✋', 'Enviar otro pedido: ya responde ✉']));
     const guide = (title: string, text: string) =>
       (ctx.root.querySelector(".breaker-instruction")!.innerHTML = guidance(
         title,

@@ -2,6 +2,7 @@ import { character } from "../characters/characters";
 import { button, note } from "../ui/components";
 import { introduction, guidance } from "../ui/narrative";
 import { TicketDemo } from "../simulators/models";
+import { reserveTextHeight } from "../ui/stability";
 import type { Chapter } from "../types";
 export const duplicateChapter: Chapter = {
   id: "duplicados",
@@ -15,7 +16,19 @@ export const duplicateChapter: Chapter = {
   mount: (ctx) => {
     let sim = new TicketDemo(),
       generation = 0;
-    const status = ctx.root.querySelector("#duplicate-status")!;
+    const status = ctx.root.querySelector<HTMLElement>("#duplicate-status")!;
+    // The status line sits above the controls: reserve its longest message.
+    ctx.onCleanup(
+      reserveTextHeight(status, [
+        "Reserva guardada. Hay un breve momento para cancelar antes del envío.",
+        "La respuesta se perdió. Pulsá Enviar otra vez: el ticket ya existe.",
+        "Ese ticket ya está cerrado: no lo reabrimos con un doble clic.",
+        "¡Un momento! Esa consulta ya tiene ticket. No autorizamos otra vez el mismo trabajo.",
+        "La evidencia permite confirmar una vez. El replay conserva el mismo cierre.",
+        "No hubo autorización física. Podemos liberar la reserva de este caso.",
+        "Nuevo caso. Podés probar el doble clic o cancelar antes del envío.",
+      ]),
+    );
     const update = () => {
       const help = {
         idle: [

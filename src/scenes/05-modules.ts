@@ -2,6 +2,7 @@ import { city } from "../characters/city";
 import { character } from "../characters/characters";
 import { modules } from "./modules";
 import { MODULE_IDS } from "../state/progress";
+import { reserveBoardHeight, availableViewport } from "../ui/stability";
 import type { Chapter } from "../types";
 const demos: Record<string, { visual: string; text: string }> = {
   tutor: {
@@ -80,9 +81,72 @@ export const modulesChapter: Chapter = {
           .querySelector<HTMLElement>("#module-theatre")!
           .focus({ preventScroll: true });
     };
-    const render = () => {
+    // One template for the live theatre and for measuring every stop.
+    const story = (active: number, part: number, nextId?: string) => {
       const m = modules[active],
-        demo = demos[m.id];
+        demo = demos[m.id],
+        next = nextId ? { id: nextId } : undefined;
+      return `<div class="module-story module-${m.id} tour-part-${part}"><div class="tour-body"><span class="eyebrow">PARADA ${active + 1} DE 7 · ${part === 0 ? "CONOCEMOS AL VECINO" : "MIRÁ CÓMO TRABAJA"}</span><div class="module-story-head tour-character">${character(m.id)}<div><span class="eyebrow">${m.place}</span><h3>${m.title}</h3></div></div><p class="module-line">${m.line}</p>${part === 0 ? `<div class="responsibilities"><p><b>MI ESPECIALIDAD</b>${m.job}</p><p><b>LO QUE CONSERVO YO</b>${m.own}</p></div><p class="tour-invitation">Vení, te muestro mi recorrido con IA.</p>` : `<div class="module-reward tour-demo">${demo.visual}</div><p class="tour-explanation">${demo.text}</p><div class="responsibilities"><p><b>MI RELACIÓN CON EL GATEWAY</b>${m.gateway}</p></div>`}</div><div class="tour-controls">${part ? '<button class="text-button" data-tour-back>← Volver a la presentación</button>' : ""}<button class="btn btn-primary" data-tour-advance>${part === 0 ? "Ver mi recorrido →" : next ? `Siguiente visita: ${next.id === "rag" ? "RAG" : ({ tutor: "Tutor", evaluator: "Evaluador", moderation: "Moderación", agent: "Agente", generator: "Generador", calibration: "Calibración" } as Record<string, string>)[next.id]} →` : "Terminar el paseo ★"}</button></div></div>`;
+    };
+    // Reserve the tallest stop so «Ver mi recorrido» and «Siguiente visita» stay put.
+    const theatre = ctx.root.querySelector<HTMLElement>("#module-theatre")!;
+    ctx.onCleanup(
+      reserveBoardHeight(
+        theatre,
+        modules.flatMap((_, index) =>
+          [0, 1].map((p) => (clone: HTMLElement) => {
+            clone.innerHTML = story(index, p, "calibration");
+          }),
+        ),
+        // On phones the theatre stacks under the map: reserve only when the
+        // tallest stop fits, otherwise short stops would push the button below the fold.
+        (heights) => {
+          const tallest = Math.max(...heights);
+          return tallest <= availableViewport() || !matchMedia("(max-width:760px)").matches
+            ? tallest
+            : null;
+        },
+      ),
+    );
+    // Same width for every label of the main tour button (right-aligned row).
+    const scratch = document.createElement("template");
+    const advanceLabels = [
+      ...new Set(
+        modules.flatMap((_, index) =>
+          [0, 1].flatMap((p) =>
+            [...modules.map((x) => x.id), undefined].map((nextId) => {
+              scratch.innerHTML = story(index, p, nextId);
+              return scratch.content.querySelector("[data-tour-advance]")!.textContent!;
+            }),
+          ),
+        ),
+      ),
+    ];
+    let advanceWidth = "";
+    const measureAdvance = () => {
+      const button = theatre.querySelector<HTMLElement>("[data-tour-advance]");
+      if (!button) return;
+      const current = button.textContent;
+      button.style.minWidth = "0px";
+      let widest = 0;
+      for (const label of advanceLabels) {
+        button.textContent = label;
+        widest = Math.max(widest, button.getBoundingClientRect().width);
+      }
+      button.textContent = current;
+      advanceWidth = widest ? `min(${Math.ceil(widest)}px, 100%)` : "";
+      button.style.minWidth = advanceWidth;
+    };
+    let measuredWidth = innerWidth;
+    const remeasure = () => {
+      if (innerWidth === measuredWidth) return;
+      measuredWidth = innerWidth;
+      measureAdvance();
+    };
+    window.addEventListener("resize", remeasure);
+    ctx.onCleanup(() => window.removeEventListener("resize", remeasure));
+    const render = () => {
+      const m = modules[active];
       ctx.root
         .querySelectorAll<HTMLElement>("[data-module]")
         .forEach((b) =>
@@ -91,8 +155,12 @@ export const modulesChapter: Chapter = {
       const next = modules.find(
         (m) => !done(m.id) && m.id !== modules[active].id,
       );
-      ctx.root.querySelector("#module-theatre")!.innerHTML =
-        `<div class="module-story module-${m.id} tour-part-${part}"><span class="eyebrow">PARADA ${active + 1} DE 7 · ${part === 0 ? "CONOCEMOS AL VECINO" : "MIRÁ CÓMO TRABAJA"}</span><div class="module-story-head tour-character">${character(m.id)}<div><span class="eyebrow">${m.place}</span><h3>${m.title}</h3></div></div><p class="module-line">${m.line}</p>${part === 0 ? `<div class="responsibilities"><p><b>MI ESPECIALIDAD</b>${m.job}</p><p><b>LO QUE CONSERVO YO</b>${m.own}</p></div><p class="tour-invitation">Vení, te muestro mi recorrido con IA.</p>` : `<div class="module-reward tour-demo">${demo.visual}</div><p class="tour-explanation">${demo.text}</p><div class="responsibilities"><p><b>MI RELACIÓN CON EL GATEWAY</b>${m.gateway}</p></div>`}<div class="tour-controls">${part ? '<button class="text-button" data-tour-back>← Volver a la presentación</button>' : ""}<button class="btn btn-primary" data-tour-advance>${part === 0 ? "Ver mi recorrido →" : next ? `Siguiente visita: ${next.id === "rag" ? "RAG" : ({ tutor: "Tutor", evaluator: "Evaluador", moderation: "Moderación", agent: "Agente", generator: "Generador", calibration: "Calibración" } as Record<string, string>)[next.id]} →` : "Terminar el paseo ★"}</button></div></div>`;
+      theatre.innerHTML = story(active, part, next?.id);
+      const advance = theatre.querySelector<HTMLElement>("[data-tour-advance]");
+      if (advance) {
+        if (!advanceWidth) measureAdvance();
+        else advance.style.minWidth = advanceWidth;
+      }
     };
     const click = (e: Event) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>(

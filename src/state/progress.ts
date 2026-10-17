@@ -7,6 +7,12 @@ export const MODULE_IDS = [
     "generator",
     "calibration",
 ] as const;
+/** Chapter 03 (index 2) asks for three different failover scenarios. */
+export const FAILOVER_CHAPTER = 2;
+export const FAILOVER_SCENARIOS = ["a", "b", "c", "none", "invalid", "timeout"] as const;
+export const FAILOVER_REQUIRED = 3;
+const isFailoverScenario = (key: string) =>
+    (FAILOVER_SCENARIOS as readonly string[]).includes(key);
 export interface CelebrationTicket {
     readonly chapter: number;
     readonly id: number;
@@ -43,10 +49,33 @@ export class AdventureProgress {
     get modulesComplete() {
         return MODULE_IDS.every((id) => this.stamps.has(`module-${id}`));
     }
+    /** Scenarios that reached a terminal state at least once (durable, deduplicated). */
+    get failoverExplored(): string[] {
+        return FAILOVER_SCENARIOS.filter((id) => this.stamps.has(`failover-${id}`));
+    }
+    /**
+     * Records evidence that does not complete a chapter by itself. Only the
+     * failover scenarios use it; it returns true the first time a scenario counts.
+     */
+    explore(chapter: number, key: string) {
+        if (chapter !== FAILOVER_CHAPTER || !isFailoverScenario(key))
+            return false;
+        const stamp = `failover-${key}`;
+        if (this.stamps.has(stamp))
+            return false;
+        this.stamps.add(stamp);
+        return true;
+    }
     complete(chapter: number, key = "done") {
         if (!Number.isInteger(chapter) || chapter < 0 || chapter > 9)
             return false;
         const wasComplete = this.finished.has(chapter);
+        // A single run cannot complete the failover lab: three different
+        // scenarios must have been explored first. Without them nothing is stamped,
+        // so a reload cannot turn a partial attempt into a star either.
+        if (chapter === FAILOVER_CHAPTER && !wasComplete &&
+            this.failoverExplored.length < FAILOVER_REQUIRED)
+            return false;
         this.stamps.add(`${chapter}:${key}`);
         if (chapter === 4) {
             if (MODULE_IDS.some((id) => key === `module-${id}`))

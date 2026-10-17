@@ -1,5 +1,6 @@
 import { character } from "../characters/characters";
 import { button, note } from "../ui/components";
+import { reserveLabelWidth } from "../ui/stability";
 import type { Chapter } from "../types";
 const steps = [
   {
@@ -59,6 +60,8 @@ export const finaleChapter: Chapter = {
     const play = ctx.root.querySelector<HTMLButtonElement>(
       '[data-action="play"]',
     )!;
+    // Keep the centred controls from sliding as this label changes.
+    ctx.onCleanup(reserveLabelWidth(play, ['▶ Reproducir misión', 'Ⅱ Pausar misión', '▶ Continuar misión']));
     const show = (n: number) => {
       step = n;
       ctx.root.querySelector("#mission-number")!.textContent =

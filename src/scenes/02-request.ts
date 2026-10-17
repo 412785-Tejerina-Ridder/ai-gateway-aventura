@@ -1,6 +1,7 @@
 import { actor, button, note } from "../ui/components";
 import { introduction, guidance } from "../ui/narrative";
 import { character } from "../characters/characters";
+import { reserveBoardHeight, reserveLabelWidth, availableViewport } from "../ui/stability";
 import type { Chapter, Character } from "../types";
 const jobs = [
   "Elegir el modelo configurado",
@@ -92,30 +93,35 @@ export const requestChapter: Chapter = {
         "Historia completa ✓",
       ],
     ];
+    // Everything that changes the board's size depends only on the phase, so the
+    // same painter serves the live board and the hidden measuring clone.
+    const paint = (scope: HTMLElement, phase: number) => {
+      scope.dataset.phase = String(phase);
+      scope.querySelector<HTMLElement>(".technical-burden")!.hidden =
+        phase !== 1;
+      scope.querySelector<HTMLElement>(".gateway-workbench")!.hidden =
+        phase < 2;
+      scope.querySelector(".gateway-job-slips")!.innerHTML =
+        phase >= 2
+          ? jobs.map((x) => `<span class="job-slip">✓ ${x}</span>`).join("")
+          : "";
+      scope.querySelector<HTMLElement>(".request-destination")!.hidden =
+        phase < 3;
+      scope.querySelector<HTMLElement>(".delegation-result")!.hidden =
+        phase !== 4;
+      scope.querySelector<HTMLElement>(".shared-neighborhood")!.hidden =
+        phase !== 5;
+      scope.querySelector<HTMLElement>(".delegation-workbench")!.hidden =
+        phase === 5;
+    };
     const show = () => {
-      board.dataset.phase = String(phase);
       const c = copy[phase];
       ctx.root.querySelector("#request-phase")!.textContent = c[0];
       ctx.root.querySelector("#request-heading")!.textContent = c[1];
       ctx.root.querySelector("#request-caption")!.textContent = c[2];
       next.textContent = c[3];
       next.disabled = phase === 5;
-      ctx.root.querySelector<HTMLElement>(".technical-burden")!.hidden =
-        phase !== 1;
-      ctx.root.querySelector<HTMLElement>(".gateway-workbench")!.hidden =
-        phase < 2;
-      ctx.root.querySelector(".gateway-job-slips")!.innerHTML =
-        phase >= 2
-          ? jobs.map((x) => `<span class="job-slip">✓ ${x}</span>`).join("")
-          : "";
-      ctx.root.querySelector<HTMLElement>(".request-destination")!.hidden =
-        phase < 3;
-      ctx.root.querySelector<HTMLElement>(".delegation-result")!.hidden =
-        phase !== 4;
-      ctx.root.querySelector<HTMLElement>(".shared-neighborhood")!.hidden =
-        phase !== 5;
-      ctx.root.querySelector<HTMLElement>(".delegation-workbench")!.hidden =
-        phase === 5;
+      paint(board, phase);
       if (phase === 5) {
         ctx.complete();
         ctx.say(
@@ -124,6 +130,27 @@ export const requestChapter: Chapter = {
         ctx.sparkle();
       }
     };
+    // Stable stage: reserve the tallest phase so the controls never move. If the
+    // final overview does not fit the screen next to the controls, reserve the
+    // tallest interactive phase; if even that does not fit, the stage follows
+    // the controls instead (see createStage).
+    const controlsHeight = () =>
+      (board.closest(".frame-lane")?.querySelector<HTMLElement>(".frame-controls")
+        ?.getBoundingClientRect().height ?? 0) + 20;
+    ctx.onCleanup(
+      reserveBoardHeight(
+        board,
+        copy.map((_, i) => (clone: HTMLElement) => paint(clone, i)),
+        (heights) => {
+          const room = availableViewport() - controlsHeight();
+          const all = Math.max(...heights);
+          if (all <= room) return all;
+          const interactive = Math.max(...heights.slice(0, 5));
+          return interactive <= room ? interactive : null;
+        },
+      ),
+    );
+    ctx.onCleanup(reserveLabelWidth(next, copy.map((c) => c[3])));
     next.addEventListener("click", () => {
       phase = Math.min(5, phase + 1);
       show();

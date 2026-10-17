@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build && node scripts/offline.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --experimental-strip-types --test tests/simulators.test.ts tests/offline.test.ts tests/progress.test.ts"
+    "test": "node --experimental-strip-types --test tests/simulators.test.ts tests/offline.test.ts tests/progress.test.ts tests/failover-quest.test.ts tests/navigation.test.ts"
   },
   "devDependencies": {
     "vite": "7.3.7",

@@ -1,6 +1,7 @@
 import { character } from "../characters/characters";
 import { button, note } from "../ui/components";
 import { introduction, guidance } from "../ui/narrative";
+import { reserveBoardHeight, reserveLabelWidth } from "../ui/stability";
 import type { Chapter } from "../types";
 const tickets = [
   {
@@ -52,6 +53,38 @@ export const notebookChapter: Chapter = {
         title,
         text,
       ));
+    const fill = (row: HTMLElement, t: (typeof tickets)[number]) => {
+      row.classList.remove("ticket-unobserved");
+      row.classList.add("sorted");
+      row.querySelector("h3")!.textContent = t.title;
+      row.querySelector(".ticket-evidence")!.textContent = t.text;
+      const seal = row.querySelector<HTMLElement>(".evidence-seal")!;
+      seal.hidden = false;
+      seal.textContent = t.seal;
+    };
+    // Reserve the space of the fullest desk so revealing tickets never pushes the controls.
+    const layout = ctx.root.querySelector<HTMLElement>(".notebook-layout");
+    if (layout)
+      ctx.onCleanup(
+        reserveBoardHeight(
+          layout,
+          tickets.map((_, current) => (clone: HTMLElement) =>
+            tickets.forEach((t, i) => {
+              const row = clone.querySelector<HTMLElement>(`[data-ticket="${t.id}"]`)!;
+              row.classList.toggle("ticket-current", i === current);
+              if (i <= current) fill(row, t);
+            }),
+          ),
+        ),
+      );
+    ctx.onCleanup(
+      reserveLabelWidth(next, [
+        "1 · Observar el primer intento →",
+        "2 · Observar el siguiente intento →",
+        "3 · Observar el siguiente intento →",
+        "Tres casos observados ✓",
+      ]),
+    );
     next.addEventListener("click", () => {
       if (shown >= 3) return;
       const t = tickets[shown];
@@ -62,12 +95,8 @@ export const notebookChapter: Chapter = {
         .querySelectorAll(".paper-ticket")
         .forEach((x) => x.classList.remove("ticket-current"));
       row.classList.remove("ticket-unobserved");
-      row.classList.add("sorted", "ticket-current");
-      row.querySelector("h3")!.textContent = t.title;
-      row.querySelector(".ticket-evidence")!.textContent = t.text;
-      const seal = row.querySelector<HTMLElement>(".evidence-seal")!;
-      seal.hidden = false;
-      seal.textContent = t.seal;
+      fill(row, t);
+      row.classList.add("ticket-current");
       shown++;
       explain(`${shown} · ${t.seal}`, t.explanation);
       ctx.root.querySelector("#notebook-status")!.textContent =

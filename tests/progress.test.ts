@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AdventureProgress, MODULE_IDS } from "../src/state/progress.ts";
 import { BPM, musicBar } from "../src/audio/composition.ts";
+// Chapter 03 needs three different finished scenarios before it can complete.
+const exploreFailover = (p: AdventureProgress) =>
+  ["a", "b", "c"].forEach((id) => p.explore(2, id));
 
 test("9/10 identifica el paseo pendiente y llega a 10/10 al terminar las siete visitas", () => {
   const p = new AdventureProgress({ finished: [0, 1, 2, 3, 5, 6, 7, 8, 9] });
@@ -14,6 +17,7 @@ test("9/10 identifica el paseo pendiente y llega a 10/10 al terminar las siete v
 });
 test("repetir visitas o un cierre no infla el contador ni la cantidad de capítulos", () => {
   const p = new AdventureProgress();
+  exploreFailover(p);
   for (let i = 0; i < 10; i++) p.complete(i);
   assert.equal(p.finished.size, 9); // A generic click cannot complete the city tour.
   for (const id of MODULE_IDS) {
@@ -84,7 +88,8 @@ test('una misión nueva permanece pendiente hasta que termina la actividad', () 
 });
 test('la primera finalización espera la confirmación y llegada de su estrella', () => {
   const progress = new AdventureProgress();
-  assert.equal(progress.complete(2, 'backup-B'), true);
+  exploreFailover(progress);
+  assert.equal(progress.complete(2, 'scenarios'), true);
   const ticket = progress.celebration!;
   assert.equal(progress.phase(2), 'celebrating');
   assert.equal(progress.phase(3), 'pending');
@@ -109,7 +114,7 @@ test('navegar durante el festejo preserva el progreso y descarta la llegada ante
   const oldFlight=progress.celebration!;progress.leaveChapter();
   assert.equal(progress.phase(1), 'completed');
   assert.equal(progress.phase(2), 'pending');
-  progress.complete(2);const currentFlight=progress.celebration!;
+  exploreFailover(progress);progress.complete(2);const currentFlight=progress.celebration!;
   assert.equal(progress.acknowledge(oldFlight), false);
   assert.equal(progress.phase(2), 'celebrating');
   assert.equal(progress.acknowledge(currentFlight), true);

@@ -1,5 +1,6 @@
 import { actor, route, button, note } from "../ui/components";
 import { introduction, guidance } from "../ui/narrative";
+import { reserveLabelWidth, reserveTextHeight } from "../ui/stability";
 import type { Chapter } from "../types";
 export const economyChapter: Chapter = {
   id: "economia",
@@ -15,6 +16,11 @@ export const economyChapter: Chapter = {
     const next = ctx.root.querySelector<HTMLButtonElement>(
       '[data-action="play"]',
     )!;
+    // Keep the centred controls from sliding as this label changes.
+    ctx.onCleanup(reserveLabelWidth(next, ['1 · Llega una consulta →', '2 · Gati intenta con A →', '3 · El respaldo B responde →', '4 · Comparar los cuadernos →', 'Recorrido completo ✓']));
+    ctx.onCleanup(reserveTextHeight(ctx.root.querySelector<HTMLElement>("#logical-total")!, ["0 consultas", "1 sola consulta"]));
+    ctx.onCleanup(reserveTextHeight(ctx.root.querySelector<HTMLElement>("#physical-total")!, ["0 intentos", "1 intento físico", "2 intentos físicos"]));
+    ctx.onCleanup(reserveTextHeight(ctx.root.querySelector<HTMLElement>("#logical-ticket")!, ["ESPERANDO UNA CONSULTA", "CONSULTA #F-042"]));
     const explain = (title: string, text: string) =>
       (ctx.root.querySelector("#economy-explanation")!.innerHTML = guidance(
         title,

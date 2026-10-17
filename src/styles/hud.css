@@ -46,7 +46,8 @@
 .tour-finished > .btn {
   margin-top: 18px;
 }
-.module-story > .eyebrow {
+.module-story > .eyebrow,
+.module-story > .tour-body > .eyebrow {
   font-size: 8px;
   margin-bottom: 15px;
 }

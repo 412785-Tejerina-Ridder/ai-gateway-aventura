@@ -23,6 +23,10 @@ export interface SceneContext {
   goTo: (index: number) => void;
   finishAdventure: () => void;
   complete: (key?: string) => boolean;
+  /** Durable evidence that does not complete the chapter by itself (chapter 03 scenarios). */
+  explore: (key: string) => boolean;
+  /** Source of truth: whether this chapter already earned its star. */
+  isComplete: () => boolean;
   completedKeys: ReadonlySet<string>;
   say: (text: string, speaker?: string) => void;
   sparkle: () => void;
